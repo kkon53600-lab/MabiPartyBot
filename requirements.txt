@@ -1,3 +1,4 @@
-discord.py
+main.py
 asyncio
+
 pytz
