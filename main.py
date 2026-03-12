@@ -1,68 +1,71 @@
 import discord
-import asyncio
-import os
 import re
-from aiohttp import web
-from discord.ext import commands
+import os
 
-# 1. 환경 설정 및 권한
+# 1. 권한 설정
 intents = discord.Intents.default()
-intents.message_content = True
-intents.reactions = True
-intents.members = True # 멘션을 위해 필요
+intents.message_content = True 
+intents.reactions = True 
 
 client = discord.Client(intents=intents)
-token = "재발급받은_토큰을_입력하세요"
 
-# --- 웹 서버 기능 (24시간 유지용) ---
-async def health_check(request):
-    return web.Response(text="OK", status=200)
+# 환경 변수에서 토큰을 불러옵니다.
+token = os.environ.get("DISCORD_TOKEN")
 
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get('/health', health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8000)
-    await site.start()
+if not token:
+    print("오류: DISCORD_TOKEN 환경 변수가 설정되지 않았습니다.")
+    exit()
 
-# --- 봇 이벤트 ---
 @client.event
 async def on_ready():
-    print(f"로그인 성공: {client.user.name}")
-    # 웹 서버 시작
-    client.loop.create_task(start_web_server())
-    await client.change_presence(activity=discord.Game(name="마비노기 파티 모집 도움"))
-
-@client.event
-async def on_message(message):
-    if message.author.bot: return
-    if message.content.startswith('!커맨드'):
-        await message.channel.send('커맨드 확인!')
+    print(f"봇 로그인 성공: {client.user.name}")
+    print("===========")
+    await client.change_presence(activity=discord.Game(name="파티 모집 관리 중"))
 
 @client.event
 async def on_raw_reaction_add(payload):
-    if payload.user_id == client.user.id: return
+    if payload.user_id == client.user.id:
+        return
 
     channel = client.get_channel(payload.channel_id)
     message = await channel.fetch_message(payload.message_id)
     
-    match = re.search(r'\[(\d+)인\]', message.content)
-    if not match: return
+    # 1. 제목에서 인원 파싱 (예: [4인], [4~6인])
+    thread_title = channel.name 
+    match = re.search(r'\[(\d+)(?:~(\d+))?인\]', thread_title)
     
-    target_count = int(match.group(1))
+    if not match:
+        return
+    
+    min_count = int(match.group(1))
+    max_count = int(match.group(2)) if match.group(2) else min_count
+    
+    # 2. 반응 확인 (커스텀 이모지 이름 리스트)
     target_emojis = ["__1", "__2", "__3", "__4", "__5", "__6", "__7", "__8", "__9", "_10", "_11", "_12", "_13"]
     
     if payload.emoji.name in target_emojis:
-        participants = set()
+        participants = [] 
         for reaction in message.reactions:
             if reaction.emoji.name in target_emojis:
                 async for user in reaction.users():
                     if not user.bot:
-                        participants.add(user)
+                        participants.append(user)
         
-        if len(participants) >= target_count:
-            mentions = " ".join([user.mention for user in participants])
-            await channel.send(f"파티 모집 완료! {mentions} 님들 일정 확인해주세요!")
+        current_count = len(participants)
+        
+        # 3. 알림 로직 (중복 알림 방지)
+        history = [msg async for msg in channel.history(limit=5)]
+        
+        # [최대 인원 도달 시: 모집 완료]
+        if current_count >= max_count:
+            if not any("모집 완료" in m.content for m in history):
+                mentions = " ".join([u.mention for u in participants])
+                await channel.send(f"🎉 **[파티 모집 완료]** {max_count}명 달성! {mentions} 님들 일정 확인해주세요!")
+        
+        # [최소 인원 도달 시: 출발 가능]
+        elif current_count >= min_count:
+            if not any("최소 인원 달성" in m.content for m in history):
+                await channel.send(f"📢 **[최소 인원 달성]** 현재 {current_count}명입니다! 출발 가능한 인원이 모였습니다.")
 
+# 4. 봇 실행
 client.run(token)
