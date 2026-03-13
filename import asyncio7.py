@@ -60,7 +60,7 @@ async def on_raw_reaction_add(payload):
         if current_count >= max_count:
             if not any("모집 완료" in m.content for m in history):
                 mentions = " ".join([u.mention for u in participants])
-                await channel.send(f"🎉 **[파티 모집 완료]** {max_count}명 달성! {mentions} 님들 일정 확인해주세요!")
+                await channel.send(f"🎉 **[파티 모집 완료]** {max_count}명 달성! {mentions} 님들 출발 전 파티 일정 확인해주세요!")
         
         # [최소 인원 도달 시: 출발 가능]
         elif current_count >= min_count:
@@ -69,4 +69,5 @@ async def on_raw_reaction_add(payload):
 
 # 4. 봇 실행
 client.run(token)
+
 
