@@ -30,7 +30,7 @@ async def on_raw_reaction_add(payload):
     channel = client.get_channel(payload.channel_id)
     message = await channel.fetch_message(payload.message_id)
     
-    # 1. 제목에서 인원 파싱 (예: [4인], [4~6인])
+    # 1. 디스코드 게시글 제목에서 인원 파싱 (예: [4인], [4~6인])
     thread_title = channel.name 
     match = re.search(r'\[(\d+)(?:~(\d+))?인\]', thread_title)
     
@@ -69,3 +69,4 @@ async def on_raw_reaction_add(payload):
 
 # 4. 봇 실행
 client.run(token)
+
