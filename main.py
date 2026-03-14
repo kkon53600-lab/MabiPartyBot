@@ -2,7 +2,10 @@ import discord
 import re
 import os
 import asyncio
+import aiohttp
+from aiohttp import web
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -14,19 +17,47 @@ token = os.environ.get("DISCORD_TOKEN")
 
 TARGET_EMOJIS = ["__1","__2","__3","__4","__5","__6","__7","__8","__9","_10","_11","_12","_13"]
 scheduled_tasks = {}
+KST = ZoneInfo("Asia/Seoul")
 
 if not token:
     print("오류: DISCORD_TOKEN 환경 변수가 설정되지 않았습니다.")
     exit()
 
+async def health_check(request):
+    return web.Response(text="OK", status=200)
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8000)
+    await site.start()
+
+async def ping_self():
+    await client.wait_until_ready()
+    koyeb_url = os.environ.get("KOYEB_URL")
+    if not koyeb_url:
+        return
+    while not client.is_closed():
+        try:
+            async with aiohttp.ClientSession() as s:
+                await s.get(koyeb_url)
+        except:
+            pass
+        await asyncio.sleep(180)
+
 @client.event
 async def on_ready():
     print(f"봇 로그인 성공: {client.user.name}")
     await client.change_presence(activity=discord.Game(name="!파티 봇 안내! 입력"))
+    asyncio.create_task(start_web_server())
+    asyncio.create_task(ping_self())
 
 async def send_reminder(message, target_time, remind_time):
     try:
-        wait_seconds = (remind_time - datetime.now()).total_seconds()
+        now = datetime.now(KST)
+        wait_seconds = (remind_time - now).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
 
@@ -91,13 +122,18 @@ async def on_message(message):
                 await message.channel.send("형식이 잘못되었습니다. 예: `!알림 2월 3일 15:00`")
                 return
             month, day, hour, minute = map(int, numbers[:4])
-            target_time = datetime.now().replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
-            if target_time < datetime.now():
-                target_time = target_time.replace(year=datetime.now().year + 1)
+            now = datetime.now(KST)
+
+            target_time = now.replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+            if target_time < now:
+                target_time = target_time.replace(year=now.year + 1)
+
             remind_time = target_time - timedelta(minutes=15)
-            if remind_time < datetime.now():
+
+            if remind_time < now:
                 await message.channel.send("⚠️ 알림 시간(출발 15분 전)이 이미 지났습니다!")
                 return
+
             if message.channel.id in scheduled_tasks:
                 scheduled_tasks[message.channel.id].cancel()
             task = asyncio.create_task(send_reminder(message, target_time, remind_time))
