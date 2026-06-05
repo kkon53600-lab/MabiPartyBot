@@ -15,7 +15,7 @@ intents.members = True
 client = discord.Client(intents=intents)
 token = os.environ.get("DISCORD_TOKEN")
 
-TARGET_EMOJIS = ["__1","__2","__3","__4","__5","__6","__7","__8","__9","_10","_11","_12","_13"]
+TARGET_EMOJIS = ["__1","__2","__3","__4","__5","__6","__7","__8","__9","_10","_11","_12","_13","_14","_15","_16","_17","__10","__11","__12","__13","__14","__15","_16"]
 scheduled_tasks = {}
 KST = ZoneInfo("Asia/Seoul")
 
